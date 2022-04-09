@@ -1,6 +1,4 @@
-package require Ttk
 
-namespace import ttk::entry
 namespace import oo::class
 namespace import tcl::mathop::*
 
