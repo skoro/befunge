@@ -1,0 +1,45 @@
+package require tcltest
+ 
+source ../stack.tcl
+
+namespace import ::tcltest::test
+namespace import ::befunge::Stack
+
+test stack-1.1 { poping from the empty stack gets an error } -body {
+    [Stack new] pop
+} -returnCodes error -result "Stack is empty"
+
+test stack-1.2 { pushing a last value from the list } {
+    set st [Stack new 1 2 3 4 5]
+    $st push 1 2 3 4 5
+    $st pop
+} 5
+
+test stack-1.3 { top gets a value on the top of the stack } {
+    [Stack new a] top
+} a
+
+test stack-1.4 { top does not remove a value from the stack } {
+    set st [Stack new]
+    $st push a b c
+    $st top
+    $st size
+} 3
+
+test stack-1.5 { size returns how much values the stack contains } {
+    [Stack new a b c d] size
+} 4
+
+test stack-1.6 { duplicate the top value on the stack } {
+    set st [Stack new 100]
+    $st dup
+    $st values
+} {100 100}
+
+test stack-1.7 { swap two values on the stack } {
+    set st [Stack new 100 200]
+    $st swap
+    $st values
+} {200 100}
+
+::tcltest::cleanupTests
