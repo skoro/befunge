@@ -1,0 +1,30 @@
+package require tcltest
+
+source ../code_matrix.tcl
+
+namespace import ::tcltest::test
+namespace import ::befunge::CodeMatrix
+
+test code_matrix-1.1 { set operation } {
+    set cm [CodeMatrix new 10 20]
+    $cm set_op 0 0 "a"
+    $cm get 0 0
+} a
+
+test code_matrix-1.2 { validate horizontal matrix bounds when setting operation } -body {
+    [CodeMatrix new 5 5] set_op 6 1 ?
+} -returnCodes error -result "Pos out of bounds (5, 5) got (6, 1)"
+
+test code_matrix-1.2 { validate vertical matrix bounds when setting operation } -body {
+    [CodeMatrix new 5 5] set_op 2 7 ?
+} -returnCodes error -result "Pos out of bounds (5, 5) got (2, 7)"
+
+test code_matrix-1.3 { validate horizontal matrix bounds when getting operation } -body {
+    [CodeMatrix new 10 8] get -1 0
+} -returnCodes error -result "Pos out of bounds (10, 8) got (-1, 0)"
+
+test code_matrix-1.3 { validate vertical matrix bounds when getting operation } -body {
+    [CodeMatrix new 10 8] get 4 10
+} -returnCodes error -result "Pos out of bounds (10, 8) got (4, 10)"
+
+::tcltest::cleanupTests
