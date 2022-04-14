@@ -1,0 +1,265 @@
+package require tcltest
+
+source ../interp.tcl
+source ../stack.tcl
+source ../code_matrix.tcl
+source ../program_counter.tcl
+
+namespace import ::tcltest::test
+namespace import ::befunge::Interp
+namespace import ::befunge::Stack
+namespace import ::befunge::CodeMatrix
+namespace import ::befunge::ProgramCounter
+
+proc times { count body } {
+    for { set i 0 } { $i < $count } { incr i } {
+        uplevel $body
+    }
+}
+
+proc createInterp {} {
+    set i [Interp new        \
+        [Stack new]          \
+        [CodeMatrix new]     \
+        [ProgramCounter new] \
+    ]
+    $i init
+    return $i
+}
+
+test interp-1.1 { checking the states for "@" operation } {
+    set i [createInterp]
+    [$i code] set_op 0 0 @
+    lappend states [$i isRunning] [$i isStopped]
+    $i start
+    lappend states [$i isRunning] [$i isStopped]
+    $i step
+    lappend states [$i isRunning] [$i isStopped]
+    return $states
+} {0 0 1 0 0 1}
+
+test interp-1.2 { checking logical not "!" operation } {
+    set i [createInterp]
+    [$i code] set_op 0 0 3
+    [$i code] set_op 1 0 !
+    [$i code] set_op 2 0 0
+    [$i code] set_op 3 0 !
+    $i start
+    times 4 {$i step}
+    [$i stack] values
+} {0 1}
+
+test interp-1.3 { step over "#" operation } {
+    set i [createInterp]
+    [$i code] set_op 0 0 "#"
+    [$i code] set_op 1 0 5
+    [$i code] set_op 2 0 2
+    $i start
+    $i step
+    $i step
+    return [list [[$i pc] xy] [[$i stack] size] [[$i stack] pop]]
+} {{3 0} 1 2}
+
+test interp-1.4 { greater than "`" operation } {
+    set i [createInterp]
+    [$i code] set_op 0 0 3
+    [$i code] set_op 1 0 2
+    [$i code] set_op 2 0 `
+    $i start
+    times 3 { $i step }
+    [$i stack] pop
+} 1
+
+test interp-direction-1.1 { the default direction of PC must be right } {
+    set i [createInterp]
+    $i start
+    lappend pos [[$i pc] xy]
+    $i step
+    lappend pos [[$i pc] xy]
+    $i step
+    lappend pos [[$i pc] xy]
+} {{0 0} {1 0} {2 0}}
+
+test interp-direction-1.2 { checking ">" direction op } {
+    set i [createInterp]
+    [$i code] set_op 0 0 v
+    [$i code] set_op 0 1 >
+    $i start
+    times 3 { $i step }
+    [$i pc] xy
+} {2 1}
+
+test interp-direction-1.3 { checking "<" direction op } {
+    set i [createInterp]
+    [$i code] set_op 2 0 <
+    $i start
+    times 3 { $i step }
+    [$i pc] xy
+} {1 0}
+
+test interp-direction-1.4 { checking "v" direction op } {
+    set i [createInterp]
+    [$i code] set_op 1 0 v
+    $i start
+    times 3 { $i step }
+    [$i pc] xy
+} {1 2}
+
+test interp-direction-1.5 { checking "^" direction op } {
+    set i [createInterp]
+    [$i code] set_op 0 0 ^
+    $i start
+    $i step
+    [$i pc] xy
+} {0 24}
+
+test interp-direction-1.6 { horizontal direction if a value is not 0 on the stack } {
+    set i [createInterp]
+    [$i code] set_op 0 0 9
+    [$i code] set_op 1 0 _
+    $i start
+    $i step
+    $i step
+    [$i pc] xy
+} {0 0}
+
+test interp-direction-1.7 { horizontal direction if a value is 0 on the stack } {
+    set i [createInterp]
+    [$i code] set_op 0 0 0
+    [$i code] set_op 1 0 _
+    $i start
+    $i step
+    $i step
+    [$i pc] xy
+} {2 0}
+
+test interp-direction-1.8 { vertical direction if a value is not 0 on the stack } {
+    set i [createInterp]
+    [$i code] set_op 0 0 v
+    [$i code] set_op 0 1 9
+    [$i code] set_op 0 2 |
+    $i start
+    times 3 { $i step }
+    [$i pc] xy
+} {0 1}
+
+test interp-direction-1.9 { vertical direction if a value is 0 on the stack } {
+    set i [createInterp]
+    [$i code] set_op 0 0 v
+    [$i code] set_op 0 1 0
+    [$i code] set_op 0 2 |
+    $i start
+    times 3 { $i step }
+    [$i pc] xy
+} {0 3}
+
+test interp-stack-1.1 { pushing numeric values onto stack } {
+    set i [createInterp]
+    [$i code] set_op 0 0 8
+    [$i code] set_op 1 0 2
+    [$i code] set_op 2 0 6
+    $i start
+    times 3 {$i step}
+    return [list [[$i stack] pop] [[$i stack] pop] [[$i stack] pop]]
+} {6 2 8}
+
+test interp-stack-1.2 { dup the stack value } {
+    set i [createInterp]
+    [$i code] set_op 0 0 5
+    [$i code] set_op 1 0 :
+    $i start
+    $i step
+    $i step
+    [$i stack] lpop 2
+} {5 5}
+
+test interp-stack-1.3 { swap the stack value } {
+    set i [createInterp]
+    [$i code] set_op 0 0 5
+    [$i code] set_op 1 0 2
+    [$i code] set_op 2 0 "\\"
+    $i start
+    times 3 { $i step }
+    [$i stack] lpop 2
+} {5 2}
+
+test interp-stack-1.4 { pop the stack value } {
+    set i [createInterp]
+    [$i code] set_op 0 0 6
+    [$i code] set_op 1 0 9
+    [$i code] set_op 2 0 "\$"
+    $i start
+    times 3 { $i step }
+    [$i stack] top
+} 6
+
+test interp-math-1.1 { checking + math operation } {
+    set i [createInterp]
+    [$i code] set_op 0 0 3
+    [$i code] set_op 1 0 2
+    [$i code] set_op 2 0 +
+    $i start
+    times 3 { $i step }
+    [$i stack] pop
+} 5
+
+test interp-math-1.2 { checking - math operation } {
+    set i [createInterp]
+    [$i code] set_op 0 0 3
+    [$i code] set_op 1 0 2
+    [$i code] set_op 2 0 -
+    $i start
+    times 3 { $i step }
+    [$i stack] pop
+} 1
+
+test interp-math-1.3 { checking * math operation } {
+    set i [createInterp]
+    [$i code] set_op 0 0 2
+    [$i code] set_op 1 0 3
+    [$i code] set_op 2 0 *
+    $i start
+    times 3 { $i step }
+    [$i stack] pop
+} 6
+
+test interp-math-1.4 { checking / math operation } {
+    set i [createInterp]
+    [$i code] set_op 0 0 8
+    [$i code] set_op 1 0 4
+    [$i code] set_op 2 0 /
+    $i start
+    times 3 {$i step}
+    [$i stack] pop
+} 2
+
+test interp-math-1.5 { checking % math operation } {
+    set i [createInterp]
+    [$i code] set_op 0 0 3
+    [$i code] set_op 1 0 2
+    [$i code] set_op 2 0 %
+    $i start
+    times 3 {$i step}
+    [$i stack] pop
+} 1
+
+test interp-stringmode-1.1 { enabling leaves character codes onto the stack } {
+    set i [createInterp]
+    [$i code] set_op 0 0 \"
+    [$i code] set_op 1 0 "a"
+    [$i code] set_op 2 0 "b"
+    [$i code] set_op 3 0 \"
+    $i start
+    times 4 { $i step }
+    [$i stack] values
+} {97 98}
+
+test interp-stringmode-1.2 { only ascii characters are allowed } -body {
+    set i [createInterp]
+    [$i code] set_op 0 0 "\""
+    [$i code] set_op 1 0 "ш"
+    $i start
+    times 2 { $i step }
+} -returnCodes error -result "Only ascii characters are allowed"
+
+::tcltest::cleanupTests

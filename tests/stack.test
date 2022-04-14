@@ -42,4 +42,8 @@ test stack-1.7 { swap two values on the stack } {
     $st values
 } {200 100}
 
+test stack-1.8 { popping as a list with count } {
+    [Stack new 10 20 30 40] lpop 2
+} {40 30}
+
 ::tcltest::cleanupTests

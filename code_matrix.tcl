@@ -1,9 +1,8 @@
 namespace eval ::befunge {
 
-    namespace import ::oo::class
     namespace export CodeMatrix
 
-    class create CodeMatrix {
+    ::oo::class create CodeMatrix {
 
         variable Width Height Code
 

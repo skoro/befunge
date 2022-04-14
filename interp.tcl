@@ -1,15 +1,18 @@
+namespace import ::tcl::mathop::*
+
 namespace eval ::befunge {
 
     namespace export Interp
 
     ::oo::class create Interp {
 
-        variable Stack Code PC StringMode
+        variable Stack Code PC StringMode State
 
         constructor { stack code pc } {
             set Stack $stack
-            set Code $code
-            set PC $pc
+            set Code  $code
+            set PC    $pc
+            set State ""
         }
 
         method init {} {
@@ -17,13 +20,35 @@ namespace eval ::befunge {
             $Code clear
         }
 
+        # Getters
+        method stack {} { return $Stack }
+        method code {} { return $Code }
+        method pc {} { return $PC }
+
         method start {} {
             $PC reset
             set StringMode 0
+            set State "running"
         }
 
-        method run {} {
+        method stop {} {
+            set State "stopped"
+        }
+
+        method step {} {
+            if {! [my isRunning]} {
+                error "State is not \"running\""
+            }
             set op [$Code get {*}[$PC xy]]
+            if {[my isStringMode]} {
+                my OpPushChar $op
+            } else {
+                my HandleOp $op
+            }
+            my MovePC
+        }
+
+        method HandleOp { op } {
             switch -- $op {
                 "+"  { my OpMath + }
                 "-"  { my OpMath - }
@@ -36,34 +61,38 @@ namespace eval ::befunge {
                 "<"  { my OpPCMove left }
                 "^"  { my OpPCMove up }
                 "v"  { my OpPCMove down }
-                "?"  { }
+                "?"  { my OpRandomDir }
                 "_"  { my OpHorizMove }
                 "|"  { my OpVertMove }
-                "\"" { my OpToggleStringMode }
+                "\"" { my OpEnableStringMode }
                 ":"  { my OpStackDup }
                 "\\" { my OpStackSwap }
                 "\$" { my OpStackPop }
                 "."  {}
                 ","  {}
-                "#"  {}
+                "#"  { my OpStepOver }
                 "g"  {}
                 "p"  {}
                 "&"  {}
                 "~"  {}
-                "@"  {}
+                "@"  { my stop }
                 ""   {}
-                default { my OpUnknown $op }
+                default {
+                    if {[string is digit $op]} {
+                        $Stack push $op
+                    } else {
+                        my OpUnknown $op
+                    }
+                }
             }
-            my MovePC
         }
 
         method OpMath { cmd } {
-            $Stack push [$cmd [$Stack pop] [$Stack pop]]
+            $Stack push [$cmd {*}[lreverse [$Stack lpop 2]]]
         }
 
-        method OpLocicalNot {} {
-            set val [$Stack pop]
-            $Stack push [expr { $val == 0 ? 1 : 0 }]
+        method OpLogicalNot {} {
+            $Stack push [== [$Stack pop] 0]
         }
 
         method OpGreaterThan {} {
@@ -80,7 +109,7 @@ namespace eval ::befunge {
 
         method OpPCMove { dir } { $PC $dir }
 
-        method OpToggleStringMode {} { set StringMode [! $StringMode ] }
+        method OpEnableStringMode {} { set StringMode 1 }
 
         method OpHorizMove {} {
             set val [$Stack pop]
@@ -92,15 +121,35 @@ namespace eval ::befunge {
             $PC [expr { $val == 0 ? "down" : "up" }]
         }
 
-        method OpUnknown { op } {
-            if {[my isStringMode]} {
-                $Stack push $op
+        method OpRandomDir {} {
+            my OpPCMove [ \
+                lindex {left right up down} [expr {int([::tcl::mathfunc::rand] * 4)}] \
+            ]
+        }
+
+        method OpStepOver {} {
+            my MovePC
+        }
+
+        method OpPushChar { char } {
+            if {[string is ascii $char]} {
+                if { $char eq "\"" } {
+                    set StringMode 0
+                } else {
+                    $Stack push [scan $char %c]
+                }
             } else {
-                error [format "Uknown op code: %s" $op]
+                error "Only ascii characters are allowed"
             }
         }
 
+        method OpUnknown { op } {
+            error [format "Uknown op code: %s" $op]
+        }
+
         method isStringMode {} { == $StringMode 1 }
+        method isRunning {} { eq $State "running" }
+        method isStopped {} { eq $State "stopped" }
 
         method MovePC {} {
             $PC move
