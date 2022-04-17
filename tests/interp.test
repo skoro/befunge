@@ -153,6 +153,37 @@ test interp-direction-1.9 { vertical direction if a value is 0 on the stack } {
     [$i pc] xy
 } {0 3}
 
+test interp-direction-1.10 { popup from the right edge to left one } {
+    set i [createInterp]
+    $i start
+    times 82 { $i step }
+    [$i pc] xy
+} {2 0}
+
+test interp-direction-1.11 { popup from the left edge to right one } {
+    set i [createInterp]
+    [$i code] set_op 0 0 <
+    $i start
+    times 82 { $i step }
+    [$i pc] xy
+} {78 0}
+
+test interp-direction-1.12 { popup from the bottom to up } {
+    set i [createInterp]
+    [$i code] set_op 0 0 v
+    $i start
+    times 26 { $i step }
+    [$i pc] xy
+} {0 1}
+
+test interp-direction-1.13 { popup from the up to bottom } {
+    set i [createInterp]
+    [$i code] set_op 0 0 ^
+    $i start
+    times 26 { $i step }
+    [$i pc] xy
+} {0 24}
+
 test interp-stack-1.1 { pushing numeric values onto stack } {
     set i [createInterp]
     [$i code] set_op 0 0 8
