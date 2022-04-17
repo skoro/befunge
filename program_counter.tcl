@@ -48,8 +48,8 @@ namespace eval ::befunge {
         }
 
         method move_to { x y } {
-            set X $x
-            set Y $y
+            my set_x $x
+            my set_y $y
         }
     }
 }
