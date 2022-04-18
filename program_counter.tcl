@@ -6,7 +6,11 @@ namespace eval ::befunge {
 
         variable X Y DX DY
 
-        constructor {} { my reset }
+        constructor {} {
+            set X 0
+            set Y 0
+            my reset
+        }
 
         method reset {} {
             my move_to 0 0

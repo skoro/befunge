@@ -4,6 +4,10 @@ set BASE_DIR [file dirname [info script]]
 
 source [file join $BASE_DIR shared.tcl]
 source [file join $BASE_DIR keysyms.tcl]
+source [file join $BASE_DIR stack.tcl]
+source [file join $BASE_DIR program_counter.tcl]
+source [file join $BASE_DIR code_matrix.tcl]
+source [file join $BASE_DIR interp.tcl]
 
 proc load_image { name filename } {
     global BASE_DIR
@@ -75,28 +79,50 @@ proc app_menu {} {
 
 ::oo::class create CodeCanvas {
 
+    superclass ::befunge::CodeMatrix
+
     variable W CW
     variable CanvasWidth CanvasHeight
     variable RW RH
     variable Options
     variable EditState
 
-    constructor { w {width 80} {height 25} } {
+    #
+    # Options:
+    #   -width
+    #   -height
+    #   -font
+    #   -rectBgActive
+    #   -rectColor
+    #   -rectBgEdit
+    constructor { w args } {
         set EditState [EditState new]
         set W $w
-        set Options(width) $width
-        set Options(height) $height
-        set Options(font) TkDefaultFont
+        my DefaultOptions
+        my ParseArgs $args
         lassign [my CalcRectSize] RW RH
-        set CanvasWidth [expr { $width * $RW + 4}]
-        set CanvasHeight [expr { $height * $RH + 4}]
+        my CalcCanvasSize
         set CW [my BuildCanvas]
         set Options(rectBgNormal) [lindex [$CW config -bg] end]
+        my RenderGrid
+        my SetBindings
+        next $Options(width) $Options(height)
+    }
+
+    method DefaultOptions {} {
+        set Options(width) 80
+        set Options(height) 25
+        set Options(font) TkDefaultFont
         set Options(rectBgActive) LightSeaGreen
         set Options(rectColor) Grey
         set Options(rectBgEdit) Yellow
-        my RenderGrid
-        my SetBindings
+        set Options(rectBgExec) Red
+    }
+
+    method ParseArgs { _args } {
+        foreach { key value } $_args {
+            set Options([string range $key 1 end]) $value
+        }
     }
 
     method canvas {} { return $CW }
@@ -105,6 +131,11 @@ proc app_menu {} {
     method CalcRectSize {} {
         lassign [my GetFontSize] fontW fontH
         return [list [expr {$fontW + 4}] [expr {$fontH + 2}]]
+    }
+
+    method CalcCanvasSize {} {
+        set CanvasWidth [expr { $Options(width) * $RW + 4}]
+        set CanvasHeight [expr { $Options(height) * $RH + 4}]
     }
 
     method BuildCanvas {} {
@@ -155,8 +186,14 @@ proc app_menu {} {
         return [list $width $height]
     }
 
-    method drawChar { x y char } {
-        $CW itemconfigure text-${x}-${y} -text $char
+    method clear {} {
+        next
+        # TODO
+    }
+
+    method set_op { x y op } {
+        next $x $y $op
+        $CW itemconfigure text-${x}-${y} -text $op
     }
 
     method SetRectAsNormal { tag } {
@@ -227,7 +264,7 @@ proc app_menu {} {
                     }
                 }
             }
-            my drawChar {*}[my GetTagXY [$EditState tag]] $char
+            my set_op {*}[my GetTagXY [$EditState tag]] $char
             my DoneEdit
         }
     }
@@ -260,6 +297,48 @@ proc app_menu {} {
     }
 }
 
+::oo::class create PCCanvas {
+
+    superclass ::befunge::ProgramCounter
+
+    variable CW
+
+    constructor { canvas } {
+        set CW $canvas
+        next
+    }
+
+    method move {} {
+        my RevertOldPos
+        next
+        my FillNewPos
+    }
+
+    method set_x { x } {
+        my RevertOldPos
+        next $x
+        my FillNewPos
+    }
+
+    method set_y { y } {
+        my RevertOldPos
+        next $y
+        my FillNewPos
+    }
+
+    method RevertOldPos {} {
+        $CW itemconfigure [my Tag] -fill white
+    }
+
+    method FillNewPos {} {
+        $CW itemconfigure [my Tag] -fill blue
+    }
+
+    method Tag {} {
+        return [format "rect-%d-%d" [my x] [my y]]
+    }
+}
+
 proc scrolled_canvas { w args } {
     frame $w
 }
@@ -275,7 +354,13 @@ wm title . "Befunge"
 pack [toolbar .t] -side top -fill x
 #pack [scrolled_canvas .c] -fill both
 
-set cc [CodeCanvas new .c]
+set code [CodeCanvas new .c -width 80 -height 25 -font TkDefaultFont]
 pack .c -fill both -expand yes
 
 . configure -menu [app_menu]
+
+set stack [::befunge::Stack new]
+set pc [PCCanvas new [$code canvas]]
+#set code [::befunge::CodeMatrix new]
+set interp [::befunge::Interp new $stack $code $pc]
+times 10 { $pc move }
