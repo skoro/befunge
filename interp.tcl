@@ -18,6 +18,7 @@ namespace eval ::befunge {
         method init {} {
             $Stack clear
             $Code clear
+            set State ""
         }
 
         # Getters
@@ -27,7 +28,7 @@ namespace eval ::befunge {
 
         method start {} {
             $PC reset
-            set StringMode 0
+            my OpDisableStringMode
             set State "running"
         }
 
@@ -96,9 +97,8 @@ namespace eval ::befunge {
         }
 
         method OpGreaterThan {} {
-            set a [$Stack pop]
-            set b [$Stack pop]
-            $Stack push [expr { $b > $a ? 1 : 0 }]
+            lassign [$Stack lpop 2] a b
+            $Stack push [expr { $b > $a }]
         }
 
         method OpStackDup {} { $Stack dup }
@@ -110,6 +110,7 @@ namespace eval ::befunge {
         method OpPCMove { dir } { $PC $dir }
 
         method OpEnableStringMode {} { set StringMode 1 }
+        method OpDisableStringMode {} { set StringMode 0 }
 
         method OpHorizMove {} {
             set val [$Stack pop]
@@ -134,7 +135,7 @@ namespace eval ::befunge {
         method OpPushChar { char } {
             if {[string is ascii $char]} {
                 if { $char eq "\"" } {
-                    set StringMode 0
+                    my OpDisableStringMode
                 } else {
                     $Stack push [scan $char %c]
                 }
@@ -155,14 +156,12 @@ namespace eval ::befunge {
             $PC move
             if {[$PC x] >= [$Code width]} {
                 $PC set_x 0
-            }
-            if {[$PC x] < 0} {
+            } elseif {[$PC x] < 0} {
                 $PC set_x [- [$Code width] 1]
             }
             if {[$PC y] >= [$Code height]} {
                 $PC set_y 0
-            }
-            if {[$PC y] < 0} {
+            } elseif {[$PC y] < 0} {
                 $PC set_y [- [$Code height] 1]
             }
         }

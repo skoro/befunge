@@ -9,7 +9,6 @@ namespace eval ::befunge {
         constructor {} {
             set X 0
             set Y 0
-            my reset
         }
 
         method reset {} {
