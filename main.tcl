@@ -15,45 +15,6 @@ proc load_image { name filename } {
         -file [file join $BASE_DIR images $filename]]
 }
 
-proc toolbar { w } {
-    set t [frame $w]
-
-    ttk::button $t.new -text "New" -style Toolbutton
-    ttk::button $t.open -text "Open" -style Toolbutton
-    ttk::button $t.save -text "Save" -style Toolbutton
-
-    ttk::separator $t.sep1 -orient vertical
-
-    ttk::button $t.run -text "Run" -style Toolbutton -compound left -image img.lightning
-    ttk::button $t.step -text "Step" -style Toolbutton -compound left -image img.brick_go
-
-    pack $t.new $t.open $t.save -side left -padx 2 -pady 2
-    pack $t.sep1 -side left -fill y -padx 2 -pady 2
-    pack $t.run $t.step -side left -padx 2 -pady 2
-
-    return $t
-}
-
-proc app_menu {} {
-    set w [menu .m]
-
-    set m [menu $w.file -tearoff 0]
-    $m add command -label "New"
-    $m add command -label "Open..."
-    $m add command -label "Save"
-    $m add separator
-    $m add command -label "Quit"
-    $w add cascade -label "File" -underline 0 -menu $m
-
-    set m [menu $w.run -tearoff 0]
-    $m add command -label "Run" -compound left -image img.lightning
-    $m add command -label "Step"
-    $m add command -label "Stop"
-    $w add cascade -label "Run" -underline 0 -menu $m
-
-    return $w
-}
-
 ::oo::class create EditState {
 
     variable Editing RectTag
@@ -165,11 +126,11 @@ proc app_menu {} {
                 $CW create rect $sx $sy [expr {$sx + $RW}] [expr {$sy + $RH}] \
                     -fill $Options(rectBgNormal) \
                     -outline $Options(rectColor) \
-                    -tags [list rect-${x}-${y} rect]
+                    -tags [list [my RectTagXY $x $y] rect]
                 $CW create text [expr {$sx + 2}] $sy \
                     -anchor nw \
                     -font $Options(font) \
-                    -tags [list text-${x}-${y} text]
+                    -tags [list [my TextTagXY $x $y] text]
             }
         }
     }
@@ -188,12 +149,25 @@ proc app_menu {} {
 
     method clear {} {
         next
-        # TODO
+        $CW itemconfigure text -text ""
+        my reset
+    }
+
+    method reset {} {
+        my SetRectAsNormal rect
+    }
+
+    method enable {} {
+        #TODO:
+    }
+
+    method disable {} {
+        #TODO:
     }
 
     method set_op { x y op } {
         next $x $y $op
-        $CW itemconfigure text-${x}-${y} -text $op
+        $CW itemconfigure [my TextTagXY $x $y] -text $op
     }
 
     method SetRectAsNormal { tag } {
@@ -295,6 +269,14 @@ proc app_menu {} {
         my SetRectAsNormal [$EditState tag]
         $EditState done
     }
+
+    method TextTagXY { x y } {
+        return [format "text-%d-%d" $x $y]
+    }
+
+    method RectTagXY { x y } {
+        return [format "rect-%d-%d" $x $y]
+    }
 }
 
 ::oo::class create PCCanvas {
@@ -339,28 +321,141 @@ proc app_menu {} {
     }
 }
 
-proc scrolled_canvas { w args } {
-    frame $w
+::oo::class create Interp {
+
+    superclass ::befunge::Interp
+
+    method start {} {
+        next
+        [my code] reset
+    }
+
+    method stop {} {
+        next
+    }
 }
 
-load_image img.brick_go brick_go.png
-load_image img.bug bug.png
-load_image img.lightning lightning.png
+namespace eval ::befunge::app {
 
-#ttk::style theme use alt
+    variable interp
+    variable toolbar
 
-wm title . "Befunge"
+    proc init {} {
+        variable interp
+        variable toolbar
 
-pack [toolbar .t] -side top -fill x
-#pack [scrolled_canvas .c] -fill both
+        wm title . "Befunge"
 
-set code [CodeCanvas new .c -width 80 -height 25 -font TkDefaultFont]
-pack .c -fill both -expand yes
+        LoadImages
 
-. configure -menu [app_menu]
+        set toolbar [Toolbar .t]
+        set code [CodeCanvas new .c -width 80 -height 25 -font TkDefaultFont]
 
-set stack [::befunge::Stack new]
-set pc [PCCanvas new [$code canvas]]
-#set code [::befunge::CodeMatrix new]
-set interp [::befunge::Interp new $stack $code $pc]
-times 10 { $pc move }
+        pack $toolbar -side top -fill x
+        pack .c -fill both -expand yes
+
+        . configure -menu [AppMenu]
+
+        set stack [::befunge::Stack new]
+        set pc [PCCanvas new [$code canvas]]
+        set interp [Interp new $stack $code $pc]
+    }
+
+    proc LoadImages {} {
+        load_image img.brick_go brick_go.png
+        load_image img.bug bug.png
+        load_image img.lightning lightning.png
+    }
+
+    proc AppMenu {} {
+        set w [menu .m]
+
+        set m [menu $w.file -tearoff 0]
+        $m add command -label "New"
+        $m add command -label "Open..."
+        $m add command -label "Save"
+        $m add separator
+        $m add command -label "Quit"
+        $w add cascade -label "File" -underline 0 -menu $m
+
+        set m [menu $w.run -tearoff 0]
+        $m add command -label "Run" -compound left -image img.lightning
+        $m add command -label "Step"
+        $m add command -label "Stop"
+        $w add cascade -label "Run" -underline 0 -menu $m
+
+        return $w
+    }
+
+    proc Toolbar { w } {
+        set t [frame $w]
+
+        ttk::button $t.new -text "New" -style Toolbutton \
+            -command [namespace code DoNew]
+        ttk::button $t.open -text "Open" -style Toolbutton
+        ttk::button $t.save -text "Save" -style Toolbutton
+
+        ttk::separator $t.sep1 -orient vertical
+
+        ttk::button $t.start -text "Start" \
+            -style Toolbutton \
+            -compound left \
+            -command [namespace code DoStart]
+        ttk::button $t.step -text "Step" \
+            -style Toolbutton \
+            -compound left \
+            -image img.brick_go \
+            -command [namespace code DoStep]
+        ttk::button $t.stop -text "Stop" \
+            -style Toolbutton \
+            -compound left \
+            -command [namespace code DoStop]
+
+        pack $t.new $t.open $t.save -side left -padx 2 -pady 2
+        pack $t.sep1 -side left -fill y -padx 2 -pady 2
+        pack $t.start $t.step $t.stop -side left -padx 2 -pady 2
+
+        return $t
+    }
+
+    proc ToolbarState { args } {
+        variable toolbar
+        foreach item $args {
+            foreach { btn newState} $item {
+                $toolbar.$btn state $newState
+            }
+        }
+    }
+
+    proc DoNew {} {
+        variable interp
+        $interp init
+        ToolbarState {start !disabled} {step disabled} {stop disabled}
+    }
+
+    proc DoStart {} {
+        variable interp
+        $interp start
+        ToolbarState {start disabled} {step !disabled} {stop !disabled}
+    }
+
+    proc DoStep {} {
+        variable interp
+        # TODO: catch
+        $interp step
+    }
+
+    proc DoStop {} {
+        variable interp
+        # TODO: catch
+        $interp stop
+        ToolbarState {stop disabled} {step disabled} {start !disabled}
+    }
+
+    proc main { args } {
+        init
+        DoNew
+    }
+}
+
+::befunge::app::main
