@@ -80,7 +80,7 @@ proc load_image { name filename } {
         set Options(rectBgExec) Red
     }
 
-    method ParseArgs { _args } {
+    method ParseArgs _args {
         foreach { key value } $_args {
             set Options([string range $key 1 end]) $value
         }
@@ -95,8 +95,8 @@ proc load_image { name filename } {
     }
 
     method CalcCanvasSize {} {
-        set CanvasWidth [expr { $Options(width) * $RW + 4}]
-        set CanvasHeight [expr { $Options(height) * $RH + 4}]
+        set CanvasWidth [expr { $Options(width) * $RW + 26}]
+        set CanvasHeight [expr { $Options(height) * $RH + 16}]
     }
 
     method BuildCanvas {} {
@@ -106,7 +106,8 @@ proc load_image { name filename } {
             -height $CanvasHeight \
             -xscrollcommand [list $W.xscroll set] \
             -yscrollcommand [list $W.yscroll set] \
-            -scrollregion [list 0 0 $CanvasWidth $CanvasHeight]
+            -scrollregion [list 0 0 $CanvasWidth $CanvasHeight] \
+            -highlightthickness 0
         ::ttk::scrollbar $W.xscroll -orient horizontal \
             -command [list $W.canvas xview]
         ::ttk::scrollbar $W.yscroll -orient vertical \
@@ -119,10 +120,11 @@ proc load_image { name filename } {
     }
 
     method RenderGrid {} {
+        set font {fixed 6}
         for { set y 0 } { $y < $Options(height) } { incr y } {
-            set sy [expr {$y * $RH + 1}]
+            set sy [expr {$y * $RH + 16}]
             for { set x 0 } { $x < $Options(width) } { incr x } {
-                set sx [expr {$x * $RW + 1}]
+                set sx [expr {$x * $RW + 24}]
                 $CW create rect $sx $sy [expr {$sx + $RW}] [expr {$sy + $RH}] \
                     -fill $Options(rectBgNormal) \
                     -outline $Options(rectColor) \
@@ -132,6 +134,11 @@ proc load_image { name filename } {
                     -font $Options(font) \
                     -tags [list [my TextTagXY $x $y] text]
             }
+            $CW create text 4 $sy -text [expr { $y + 1 }] -anchor nw -font $font
+        }
+        for { set x 1 } { $x <= $Options(width) } { incr x } {
+            set sx [expr {$x * $RW + 18}]
+            $CW create text $sx 0 -text $x -anchor ne -font $font
         }
     }
 
@@ -158,11 +165,11 @@ proc load_image { name filename } {
     }
 
     method enable {} {
-        #TODO:
+        $CW configure -state normal
     }
 
     method disable {} {
-        #TODO:
+        $CW configure -state disabled
     }
 
     method set_op { x y op } {
@@ -285,7 +292,7 @@ proc load_image { name filename } {
 
     variable CW
 
-    constructor { canvas } {
+    constructor canvas {
         set CW $canvas
         next
     }
@@ -296,28 +303,32 @@ proc load_image { name filename } {
         my FillNewPos
     }
 
-    method set_x { x } {
+    method set_x x {
         my RevertOldPos
         next $x
         my FillNewPos
     }
 
-    method set_y { y } {
+    method set_y y {
         my RevertOldPos
         next $y
         my FillNewPos
     }
 
     method RevertOldPos {} {
-        $CW itemconfigure [my Tag] -fill white
+        # TODO: should be configurable via options
+        $CW itemconfigure [my Tag rect] -fill white
+        $CW itemconfigure [my Tag text] -fill black
     }
 
     method FillNewPos {} {
-        $CW itemconfigure [my Tag] -fill blue
+        # TODO: should be configurable via options
+        $CW itemconfigure [my Tag rect] -fill blue
+        $CW itemconfigure [my Tag text] -fill white
     }
 
-    method Tag {} {
-        return [format "rect-%d-%d" [my x] [my y]]
+    method Tag name {
+        return [format "%s-%d-%d" $name [my x] [my y]]
     }
 }
 
@@ -328,10 +339,12 @@ proc load_image { name filename } {
     method start {} {
         next
         [my code] reset
+        [my code] disable
     }
 
     method stop {} {
         next
+        [my code] enable
     }
 }
 
@@ -349,7 +362,7 @@ namespace eval ::befunge::app {
         LoadImages
 
         set toolbar [Toolbar .t]
-        set code [CodeCanvas new .c -width 80 -height 25 -font TkDefaultFont]
+        set code [CodeCanvas new .c -width 80 -height 25 -font {courier 12 bold}]
 
         pack $toolbar -side top -fill x
         pack .c -fill both -expand yes
@@ -362,9 +375,11 @@ namespace eval ::befunge::app {
     }
 
     proc LoadImages {} {
-        load_image img.brick_go brick_go.png
-        load_image img.bug bug.png
-        load_image img.lightning lightning.png
+        load_image ico.brick_go brick_go.png
+        load_image ico.start control_play_blue.png
+        load_image ico.stop control_stop_blue.png
+        load_image ico.folder folder.png
+        load_image ico.save table_save.png
     }
 
     proc AppMenu {} {
@@ -379,7 +394,7 @@ namespace eval ::befunge::app {
         $w add cascade -label "File" -underline 0 -menu $m
 
         set m [menu $w.run -tearoff 0]
-        $m add command -label "Run" -compound left -image img.lightning
+        $m add command -label "Run" -compound left
         $m add command -label "Step"
         $m add command -label "Stop"
         $w add cascade -label "Run" -underline 0 -menu $m
@@ -392,23 +407,31 @@ namespace eval ::befunge::app {
 
         ttk::button $t.new -text "New" -style Toolbutton \
             -command [namespace code DoNew]
-        ttk::button $t.open -text "Open" -style Toolbutton
-        ttk::button $t.save -text "Save" -style Toolbutton
+        ttk::button $t.open -text "Open" \
+            -style Toolbutton \
+            -compound left \
+            -image ico.folder
+        ttk::button $t.save -text "Save" \
+            -style Toolbutton \
+            -compound left \
+            -image ico.save
 
         ttk::separator $t.sep1 -orient vertical
 
         ttk::button $t.start -text "Start" \
             -style Toolbutton \
             -compound left \
+            -image ico.start \
             -command [namespace code DoStart]
         ttk::button $t.step -text "Step" \
             -style Toolbutton \
             -compound left \
-            -image img.brick_go \
+            -image ico.brick_go \
             -command [namespace code DoStep]
         ttk::button $t.stop -text "Stop" \
             -style Toolbutton \
             -compound left \
+            -image ico.stop \
             -command [namespace code DoStop]
 
         pack $t.new $t.open $t.save -side left -padx 2 -pady 2
