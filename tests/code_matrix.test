@@ -27,4 +27,32 @@ test code_matrix-1.3 { validate vertical matrix bounds when getting operation } 
     [CodeMatrix new 10 8] get 4 10
 } -returnCodes error -result "Pos out of bounds (10, 8) got (4, 10)"
 
+test code_matrix-1.4 { serialize code matrix to a string } {
+    set cm [CodeMatrix new 5 5]
+    $cm set_op 0 0 >
+    $cm set_op 1 0 v
+    $cm set_op 0 1 ^
+    $cm set_op 1 1 <
+    $cm to_string
+} ">v   \n^<   \n     \n     \n     \n"
+
+test code_matrix-1.5 { unserialize a string to code matrix } {
+    set str ">v   \n^<   \n     \n     \n     \n"
+    set cm [CodeMatrix new 5 5]
+    $cm from_string $str
+    list [$cm get 0 0] [$cm get 1 0] [$cm get 0 1] [$cm get 1 1]
+} {> v ^ <}
+
+test code_matrix-1.6 { there must be an error when strings are more than height } -body {
+    set str ">v   \n^<   \n     \n     \n     \n     \n"
+    set cm [CodeMatrix new 5 5]
+    $cm from_string $str
+} -returnCodes error -result "Lines count \"6\" is more than code matrix height \"5\""
+
+test code_matrix-1.7 { there must be an error when the string length is more than width } -body {
+    set str ">v   \n^<    \n     \n     \n     \n"
+    set cm [CodeMatrix new 5 5]
+    $cm from_string $str
+} -returnCodes error -result "String length \"6\" of line \"2\" is more than matrix width \"5\""
+
 ::tcltest::cleanupTests
