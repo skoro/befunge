@@ -64,8 +64,8 @@ proc load_image { name filename } {
         lassign [my CalcRectSize] RW RH
         my CalcCanvasSize
         set CW [my BuildCanvas]
-        set Options(rectBgNormal) [lindex [$CW config -bg] end]
         my RenderGrid
+        my RenderRuler
         my SetBindings
         next $Options(width) $Options(height)
     }
@@ -74,10 +74,12 @@ proc load_image { name filename } {
         set Options(width) 80
         set Options(height) 25
         set Options(font) TkDefaultFont
+        set Options(rulerFont) TkFixedFont
+        set Options(rulerColor) Black
         set Options(rectBgActive) LightSeaGreen
-        set Options(rectColor) Grey
+        set Options(rectBgNormal) LightGrey
+        set Options(rectColor) DarkGrey
         set Options(rectBgEdit) Yellow
-        set Options(rectBgExec) Red
     }
 
     method ParseArgs _args {
@@ -90,13 +92,21 @@ proc load_image { name filename } {
     method frame {} { return $W }
 
     method CalcRectSize {} {
-        lassign [my GetFontSize] fontW fontH
-        return [list [expr {$fontW + 4}] [expr {$fontH + 2}]]
+        lassign [my GetFontSize $Options(font)] font_w font_h
+        return [list [expr {$font_w + 4}] [expr {$font_h + 4}]]
+    }
+
+    method CalcRulerSize {} {
+        return [list \
+            [font measure $Options(rulerFont) "$Options(width)"] \
+            [font metrics $Options(rulerFont) -linespace] \
+        ]
     }
 
     method CalcCanvasSize {} {
-        set CanvasWidth [expr { $Options(width) * $RW + 26}]
-        set CanvasHeight [expr { $Options(height) * $RH + 16}]
+        lassign [my CalcRulerSize] ruler_w ruler_h
+        set CanvasWidth [expr { $Options(width) * $RW + $ruler_w + 4 }]
+        set CanvasHeight [expr { $Options(height) * $RH + $ruler_h + 4 }]
     }
 
     method BuildCanvas {} {
@@ -120,33 +130,50 @@ proc load_image { name filename } {
     }
 
     method RenderGrid {} {
-        set font {fixed 6}
+        lassign [my CalcRulerSize] ruler_w ruler_h
         for { set y 0 } { $y < $Options(height) } { incr y } {
-            set sy [expr {$y * $RH + 16}]
+            set sy [expr {$y * $RH + $ruler_h + 2}]
             for { set x 0 } { $x < $Options(width) } { incr x } {
-                set sx [expr {$x * $RW + 24}]
+                set sx [expr {$x * $RW + $ruler_w + 2}]
                 $CW create rect $sx $sy [expr {$sx + $RW}] [expr {$sy + $RH}] \
                     -fill $Options(rectBgNormal) \
                     -outline $Options(rectColor) \
                     -tags [list [my RectTagXY $x $y] rect]
-                $CW create text [expr {$sx + 2}] $sy \
-                    -anchor nw \
+                $CW create text [expr {$sx + $RW/2}] [expr {$sy + $RH/2}] \
                     -font $Options(font) \
                     -tags [list [my TextTagXY $x $y] text]
             }
-            $CW create text 4 $sy -text [expr { $y + 1 }] -anchor nw -font $font
-        }
-        for { set x 1 } { $x <= $Options(width) } { incr x } {
-            set sx [expr {$x * $RW + 18}]
-            $CW create text $sx 0 -text $x -anchor ne -font $font
         }
     }
 
-    method GetFontSize { } {
-        set height [font metrics $Options(font) -linespace]
+    method RenderRuler {} {
+        lassign [my CalcRulerSize] ruler_w ruler_h
+        # horizontal ruler
+        set y [expr {$ruler_h/2}]
+        for { set i 1 } { $i <= $Options(width) } { incr i } {
+            set x [expr { ($i-1) * $RW + $ruler_w + 2 + $RW /2 }]
+            $CW create text $x $y \
+                -text $i \
+                -font $Options(rulerFont) \
+                -fill $Options(rulerColor)
+        }
+        # vertical ruler
+        set x [expr {$ruler_w/2}]
+        for { set i 1 } { $i <= $Options(height) } { incr i } {
+            set y [expr { ($i-1) * $RH + $ruler_h + 2 + $RH / 2}]
+            $CW create text $x $y \
+                -text $i \
+                -font $Options(rulerFont) \
+                -fill $Options(rulerColor)
+        }
+    }
+
+    # TODO: move to shared ?
+    method GetFontSize font {
+        set height [font metrics $font -linespace]
         set width 0
         for { set i 33 } { $i < 127 } { incr i } {
-            set w [font measure $Options(font) [format "%c" $i]]
+            set w [font measure $font [format "%c" $i]]
             if { $w > $width } {
                 set width $w
             }
@@ -362,7 +389,9 @@ namespace eval ::befunge::app {
         LoadImages
 
         set toolbar [Toolbar .t]
-        set code [CodeCanvas new .c -width 80 -height 25 -font {courier 12 bold}]
+        set font [font create code_font -family fixed -size 8 -weight bold]
+        set ruler_font [font create ruler_font -family fixed -size 6]
+        set code [CodeCanvas new .c -width 80 -height 25 -font $font -rulerFont $ruler_font]
 
         pack $toolbar -side top -fill x
         pack .c -fill both -expand yes
