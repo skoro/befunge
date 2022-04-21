@@ -6,12 +6,13 @@ namespace eval ::befunge {
 
     ::oo::class create Interp {
 
-        variable Stack Code PC StringMode State
+        variable Stack Code PC StringMode State IO
 
-        constructor { stack code pc } {
+        constructor { stack code pc io } {
             set Stack $stack
             set Code  $code
             set PC    $pc
+            set IO    $io
             set State ""
         }
 
@@ -69,13 +70,13 @@ namespace eval ::befunge {
                 ":"  { my OpStackDup }
                 "\\" { my OpStackSwap }
                 "\$" { my OpStackPop }
-                "."  {}
-                ","  {}
+                "."  { my OpOutputAsInt }
+                ","  { my OpOutputAsChar }
                 "#"  { my OpStepOver }
                 "g"  {}
                 "p"  {}
-                "&"  {}
-                "~"  {}
+                "&"  { my OpAskNumber }
+                "~"  { my OpAskChar }
                 "@"  { my stop }
                 ""   {}
                 default {
@@ -137,11 +138,38 @@ namespace eval ::befunge {
                 if { $char eq "\"" } {
                     my OpDisableStringMode
                 } else {
-                    $Stack push [scan $char %c]
+                    my PushChar $char
                 }
             } else {
                 error "Only ascii characters are allowed"
             }
+        }
+
+        method OpAskNumber {} {
+            set num [$IO input]
+            # TODO: should it be one digit number ?
+            if {[string is integer $num]} {
+                $Stack push $num
+            } else {
+                error "Input must be a number"
+            }
+        }
+
+        method OpAskChar {} {
+            set char [$IO input]
+            if {[string length $char] == 1 && [string is ascii $char]} {
+                my PushChar $char
+            } else {
+                error "Input must be an ascii character"
+            }
+        }
+
+        method OpOutputAsInt {} {
+            $IO output [$Stack pop]
+        }
+
+        method OpOutputAsChar {} {
+            $IO output [format "%c" [$Stack pop]]
         }
 
         method OpUnknown { op } {
@@ -164,6 +192,10 @@ namespace eval ::befunge {
             } elseif {[$PC y] < 0} {
                 $PC set_y [- [$Code height] 1]
             }
+        }
+
+        method PushChar char {
+            $Stack push [scan $char "%c"]
         }
     }
 }
