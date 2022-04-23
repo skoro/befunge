@@ -8,6 +8,7 @@ source [file join $BASE_DIR stack.tcl]
 source [file join $BASE_DIR program_counter.tcl]
 source [file join $BASE_DIR code_matrix.tcl]
 source [file join $BASE_DIR interp.tcl]
+source [file join $BASE_DIR iohandler.tcl]
 
 proc load_image { name filename } {
     global BASE_DIR
@@ -375,6 +376,72 @@ proc load_image { name filename } {
     }
 }
 
+::oo::class create StackUI {
+
+    superclass ::befunge::Stack
+
+    variable W L
+
+    constructor w {
+        set W [frame $w]
+        my RenderUI
+        my ListHeader
+        next
+    }
+
+    method RenderUI {} {
+        ::ttk::label $W.title -text "Stack" -background Grey -foreground Black
+        set L $W.lb
+        listbox $L -yscrollcommand [list $W.vert set] \
+            -font TkFixedFont
+        ::ttk::scrollbar $W.vert -command [list $L yview]
+        pack $W.title -side top -fill x
+        pack $W.vert -side right -fill y
+        pack $L -side left -fill both -expand yes
+    }
+
+    method ListHeader {} {
+        $L insert 0 [format " %-6s %-4s %-5s" "Dec" "Hex" "Char"]
+        $L itemconfigure 0 \
+            -background DarkGrey \
+            -foreground Black \
+            -selectbackground DarkGrey \
+            -selectforeground Black
+    }
+
+    method frame {} {
+        return $W
+    }
+
+    method listbox {} {
+        return $L
+    }
+
+    method pop {} {
+        $L delete 1
+        next
+    }
+
+    method push args {
+        next {*}$args
+        my AddValues {*}$args
+    }
+
+    method AddValues args {
+        foreach arg $args {
+            $L insert 1 [ \
+                format " %-6d 0x%02x   %c" $arg $arg \
+                    [expr {($arg > 32 && $arg < 255) ? $arg : 32}] \
+            ]
+        }
+    }
+
+    method clear {} {
+        next
+        $L delete 1 end
+    }
+}
+
 namespace eval ::befunge::app {
 
     variable interp
@@ -389,18 +456,25 @@ namespace eval ::befunge::app {
         LoadImages
 
         set toolbar [Toolbar .t]
+
+        set main_pane [panedwindow .pw -orient vertical]
+
         set font [font create code_font -family fixed -size 8 -weight bold]
         set ruler_font [font create ruler_font -family fixed -size 6]
-        set code [CodeCanvas new .c -width 80 -height 25 -font $font -rulerFont $ruler_font]
+        set code [CodeCanvas new $main_pane.c -width 80 -height 25 -font $font -rulerFont $ruler_font]
+        set stack [StackUI new $main_pane.st]
+
+        $main_pane add [$code frame] [$stack frame]
 
         pack $toolbar -side top -fill x
-        pack .c -fill both -expand yes
+        pack $main_pane -fill both -expand yes
+        #pack .c -fill both -expand yes
 
         . configure -menu [AppMenu]
 
-        set stack [::befunge::Stack new]
         set pc [PCCanvas new [$code canvas]]
-        set interp [Interp new $stack $code $pc]
+        set io [::befunge::IOHandler new]
+        set interp [Interp new $stack $code $pc $io]
     }
 
     proc LoadImages {} {
