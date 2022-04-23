@@ -29,6 +29,7 @@ namespace eval ::befunge {
 
         method start {} {
             $PC reset
+            $Stack clear
             my OpDisableStringMode
             set State "running"
         }
