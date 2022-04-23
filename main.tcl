@@ -468,7 +468,6 @@ namespace eval ::befunge::app {
 
         pack $toolbar -side top -fill x
         pack $main_pane -fill both -expand yes
-        #pack .c -fill both -expand yes
 
         . configure -menu [AppMenu]
 
@@ -513,11 +512,13 @@ namespace eval ::befunge::app {
         ttk::button $t.open -text "Open" \
             -style Toolbutton \
             -compound left \
-            -image ico.folder
+            -image ico.folder \
+            -command [namespace code DoOpenFile]
         ttk::button $t.save -text "Save" \
             -style Toolbutton \
             -compound left \
-            -image ico.save
+            -image ico.save \
+            -command [namespace code DoSaveFile]
 
         ttk::separator $t.sep1 -orient vertical
 
@@ -569,6 +570,9 @@ namespace eval ::befunge::app {
         variable interp
         # TODO: catch
         $interp step
+        if {[$interp isStopped]} {
+            DoStop
+        }
     }
 
     proc DoStop {} {
@@ -576,6 +580,46 @@ namespace eval ::befunge::app {
         # TODO: catch
         $interp stop
         ToolbarState {stop disabled} {step disabled} {start !disabled}
+    }
+
+    proc DoOpenFile {} {
+        variable interp
+        set filename [tk_getOpenFile]
+        set check [::befunge::CodeMatrix new [[$interp code] width] [[$interp code] height]]
+        if {$filename eq ""} {
+            return
+        }
+        try {
+            set fd [open $filename]
+            set str [read $fd]
+            $check from_string $str
+            DoNew
+            [$interp code] from_string $str
+        } on error msg {
+            ShowError [format "%s: %s" $filename $msg]
+        } finally {
+            close $fd
+        }
+    }
+
+    proc DoSaveFile {} {
+        variable interp
+        set filename [tk_getSaveFile]
+        if {$filename eq ""} {
+            return
+        }
+        try {
+            set fd [open $filename "w"]
+            puts -nonewline $fd [[$interp code] to_string]
+        } on error msg {
+            ShowError [format "%s: %s" $filename $msg]
+        } finally {
+            close $fd
+        }
+    }
+
+    proc ShowError msg {
+        tk_messageBox -icon error -parent . -type ok -message $msg -title "Error"
     }
 
     proc main { args } {
