@@ -79,7 +79,7 @@ namespace eval ::befunge {
                 "&"  { my OpAskNumber }
                 "~"  { my OpAskChar }
                 "@"  { my stop }
-                ""   {}
+                "" - " " {}
                 default {
                     if {[string is digit $op]} {
                         $Stack push $op
@@ -174,7 +174,7 @@ namespace eval ::befunge {
         }
 
         method OpUnknown { op } {
-            error [format "Uknown op code: %s" $op]
+            error [format "Unknown op code: \"%s\"" $op]
         }
 
         method isStringMode {} { == $StringMode 1 }
