@@ -26,10 +26,12 @@ namespace eval ::befunge {
         method stack {} { return $Stack }
         method code {} { return $Code }
         method pc {} { return $PC }
+        method io {} { return $IO }
 
         method start {} {
             $PC reset
             $Stack clear
+            $IO flush
             my OpDisableStringMode
             set State "running"
         }
@@ -147,7 +149,7 @@ namespace eval ::befunge {
         }
 
         method OpAskNumber {} {
-            set num [$IO input]
+            set num [$IO input_int]
             # TODO: should it be one digit number ?
             if {[string is integer $num]} {
                 $Stack push $num
@@ -157,7 +159,7 @@ namespace eval ::befunge {
         }
 
         method OpAskChar {} {
-            set char [$IO input]
+            set char [$IO input_char]
             if {[string length $char] == 1 && [string is ascii $char]} {
                 my PushChar $char
             } else {

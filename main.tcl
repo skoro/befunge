@@ -383,7 +383,7 @@ proc load_image { name filename } {
     variable W L
 
     constructor w {
-        set W [frame $w]
+        set W [::ttk::frame $w]
         my RenderUI
         my ListHeader
         next
@@ -442,6 +442,74 @@ proc load_image { name filename } {
     }
 }
 
+::oo::class create IOHandlerUI {
+
+    superclass ::befunge::IOHandler
+
+    variable W Out In
+
+    constructor { w } {
+        set W [::ttk::frame $w]
+        my RenderUI
+    }
+
+    method frame {} {
+        return $W
+    }
+
+    method RenderUI {} {
+        ::ttk::label $W.titleOut -text "Output" -background Grey -foreground Black
+        set f [::ttk::frame $W.f]
+        set Out $f.out
+        text $Out \
+            -yscrollcommand [list $f.vert set] \
+            -height 10
+        bind $Out <KeyPress> break; # set output as readonly widget
+        ::ttk::scrollbar $f.vert -command [list $f.t yview]
+        pack $f.vert -side right -fill y
+        pack $f.out -fill both -expand yes
+        pack $W.titleOut -side top -fill x
+        pack $f -side top -fill both -expand yes
+    }
+
+    method ModalInput { msg } {
+        set In ""
+        set t [toplevel .in]
+        wm title $t "Input"
+        set f1 [::ttk::frame $t.f1]
+        ::ttk::label $f1.title -text "$msg:"
+        ::ttk::entry $f1.in -textvariable [self]::In
+        set f2 [::ttk::frame $t.f2]
+        ::ttk::button $f2.ok -text "OK" -command [list destroy $t]
+        pack $f1 -side top -fill x
+        pack $f1.title $f1.in -side left -anchor w -padx 4
+        pack $f2 -side bottom
+        pack $f2.ok -pady 4
+        focus $f1.in
+        grab $t
+        raise $t
+        tkwait window $t
+        return $In
+    }
+
+    method input_int {} {
+        my ModalInput "Integer"
+    }
+
+    method input_char {} {
+        my ModalInput "Character"
+    }
+
+    method output value {
+        $Out insert end $value
+        $Out see end
+    }
+
+    method flush {} {
+        $Out delete 0.0 end
+    }
+}
+
 namespace eval ::befunge::app {
 
     variable interp
@@ -462,9 +530,13 @@ namespace eval ::befunge::app {
         set font [font create code_font -family fixed -size 8 -weight bold]
         set ruler_font [font create ruler_font -family fixed -size 6]
         set code [CodeCanvas new $main_pane.c -width 80 -height 25 -font $font -rulerFont $ruler_font]
-        set stack [StackUI new $main_pane.st]
+        set bottom_frame [frame $main_pane.bt]
+        set stack [StackUI new $bottom_frame.st]
+        set io [IOHandlerUI new $bottom_frame.io]
+        pack [$stack frame] -side left -fill y
+        pack [$io frame] -side right -fill both -expand yes
 
-        $main_pane add [$code frame] [$stack frame]
+        $main_pane add [$code frame] $bottom_frame
 
         pack $toolbar -side top -fill x
         pack $main_pane -fill both -expand yes
@@ -472,7 +544,6 @@ namespace eval ::befunge::app {
         . configure -menu [AppMenu]
 
         set pc [PCCanvas new [$code canvas]]
-        set io [::befunge::IOHandler new]
         set interp [Interp new $stack $code $pc $io]
     }
 

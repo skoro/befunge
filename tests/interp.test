@@ -1,30 +1,42 @@
 package require tcltest
 
+source ../shared.tcl
 source ../interp.tcl
 source ../stack.tcl
 source ../code_matrix.tcl
 source ../program_counter.tcl
+source ../iohandler.tcl
 
 namespace import ::tcltest::test
+namespace import ::oo::class
 namespace import ::befunge::Interp
 namespace import ::befunge::Stack
 namespace import ::befunge::CodeMatrix
 namespace import ::befunge::ProgramCounter
-
-proc times { count body } {
-    for { set i 0 } { $i < $count } { incr i } {
-        uplevel $body
-    }
-}
+namespace import ::befunge::IOHandler
 
 proc createInterp {} {
     set i [Interp new        \
         [Stack new]          \
         [CodeMatrix new]     \
         [ProgramCounter new] \
+        [IOHandler new]      \
     ]
     $i init
     return $i
+}
+
+class create TestIO {
+    superclass IOHandler
+
+    variable Out In
+
+    constructor {} { set Out "" }
+    method output value { set Out $value }
+    method input_int {} { return $In }
+    method input_char {} { return $In }
+    method get_output {} { return $Out }
+    method set_input value { set In $value }
 }
 
 test interp-1.1 { checking the states for "@" operation } {
@@ -292,5 +304,49 @@ test interp-stringmode-1.2 { only ascii characters are allowed } -body {
     $i start
     times 2 { $i step }
 } -returnCodes error -result "Only ascii characters are allowed"
+
+test interp-io-1.1 { operation "&" will ask for a number } {
+    set io [TestIO new]
+    $io set_input 6
+    set i [Interp new [Stack new] [CodeMatrix new] [ProgramCounter new] $io]
+    [$i code] set_op 0 0 &
+    $i start
+    $i step
+    [$i stack] top
+} 6
+
+test interp-io-1.2 { operation "~" will ask for a char } {
+    set io [TestIO new]
+    $io set_input "A"
+    set i [Interp new [Stack new] [CodeMatrix new] [ProgramCounter new] $io]
+    [$i code] set_op 0 0 "~"
+    $i start
+    $i step
+    [$i stack] top
+} 65
+
+test interp-io-1.3 { operation "." outputs the value as an integer } {
+    set io [TestIO new]
+    set i [Interp new [Stack new] [CodeMatrix new] [ProgramCounter new] $io]
+    [$i code] set_op 0 0 \"
+    [$i code] set_op 1 0 "A"
+    [$i code] set_op 2 0 \"
+    [$i code] set_op 3 0 "."
+    $i start
+    times 4 { $i step }
+    $io get_output
+} 65
+
+test interp-io-1.4 { operation "," outputs the value as a character } {
+    set io [TestIO new]
+    set i [Interp new [Stack new] [CodeMatrix new] [ProgramCounter new] $io]
+    [$i code] set_op 0 0 \"
+    [$i code] set_op 1 0 "A"
+    [$i code] set_op 2 0 \"
+    [$i code] set_op 3 0 ","
+    $i start
+    times 4 { $i step }
+    $io get_output
+} "A"
 
 ::tcltest::cleanupTests
