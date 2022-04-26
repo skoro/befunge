@@ -481,6 +481,7 @@ proc load_image { name filename } {
         ::ttk::entry $f1.in -textvariable [self]::In
         set f2 [::ttk::frame $t.f2]
         ::ttk::button $f2.ok -text "OK" -command [list destroy $t]
+        bind $f1.in <Return> [list $f2.ok invoke]
         pack $f1 -side top -fill x
         pack $f1.title $f1.in -side left -anchor w -padx 4
         pack $f2 -side bottom
@@ -514,15 +515,19 @@ namespace eval ::befunge::app {
 
     variable interp
     variable toolbar
+    variable Speed
+    variable RunTimer
 
     proc init {} {
         variable interp
         variable toolbar
+        variable Speed
 
         wm title . "Befunge"
 
         LoadImages
 
+        set Speed 5
         set toolbar [Toolbar .t]
 
         set main_pane [panedwindow .pw -orient vertical]
@@ -533,8 +538,8 @@ namespace eval ::befunge::app {
         set bottom_frame [frame $main_pane.bt]
         set stack [StackUI new $bottom_frame.st]
         set io [IOHandlerUI new $bottom_frame.io]
-        pack [$stack frame] -side left -fill y
-        pack [$io frame] -side right -fill both -expand yes
+        pack [$stack frame] -side left -fill y -padx 2 -pady 2
+        pack [$io frame] -side right -fill both -expand yes -padx 2 -pady 2
 
         $main_pane add [$code frame] $bottom_frame
 
@@ -548,10 +553,12 @@ namespace eval ::befunge::app {
     }
 
     proc LoadImages {} {
-        load_image ico.brick_go brick_go.png
-        load_image ico.start control_play_blue.png
+        load_image ico.run control_play_blue.png
+        load_image ico.pause control_pause_blue.png
+        load_image ico.continue control_repeat_blue.png
         load_image ico.stop control_stop_blue.png
-        load_image ico.folder folder.png
+
+        load_image ico.open folder.png
         load_image ico.save table_save.png
     }
 
@@ -583,7 +590,7 @@ namespace eval ::befunge::app {
         ttk::button $t.open -text "Open" \
             -style Toolbutton \
             -compound left \
-            -image ico.folder \
+            -image ico.open \
             -command [namespace code DoOpenFile]
         ttk::button $t.save -text "Save" \
             -style Toolbutton \
@@ -593,25 +600,45 @@ namespace eval ::befunge::app {
 
         ttk::separator $t.sep1 -orient vertical
 
-        ttk::button $t.start -text "Start" \
+        ttk::button $t.run -text "Run" \
             -style Toolbutton \
             -compound left \
-            -image ico.start \
-            -command [namespace code DoStart]
-        ttk::button $t.step -text "Step" \
+            -image ico.run \
+            -command [namespace code DoRun]
+        ttk::button $t.pause -text "Pause" \
             -style Toolbutton \
             -compound left \
-            -image ico.brick_go \
-            -command [namespace code DoStep]
+            -image ico.pause \
+            -command [namespace code DoPause]
+        ttk::button $t.continue -text "Continue" \
+            -style Toolbutton \
+            -compound left \
+            -image ico.continue \
+            -command [namespace code DoContinue]
         ttk::button $t.stop -text "Stop" \
             -style Toolbutton \
             -compound left \
             -image ico.stop \
             -command [namespace code DoStop]
 
+        ttk::separator $t.sep2 -orient vertical
+
+        ttk::label $t.speed_lb -text "Speed:"
+        ttk::scale $t.speed -from 1 -to 20 \
+            -orient horizontal \
+            -length 100 \
+            -variable [namespace current]::Speed \
+            -command [list apply {{varName idx} {
+                upvar 1 $varName var
+                set var [tcl::mathfunc::int $idx]
+            }} [namespace current]::Speed]
+        ttk::label $t.speed_val -textvariable [namespace current]::Speed
+
         pack $t.new $t.open $t.save -side left -padx 2 -pady 2
         pack $t.sep1 -side left -fill y -padx 2 -pady 2
-        pack $t.start $t.step $t.stop -side left -padx 2 -pady 2
+        pack $t.run $t.pause $t.continue $t.stop -side left -padx 2 -pady 2
+        pack $t.sep2 -side left -fill y -padx 2 -pady 2
+        pack $t.speed_lb $t.speed $t.speed_val -side left -padx 4
 
         return $t
     }
@@ -628,29 +655,45 @@ namespace eval ::befunge::app {
     proc DoNew {} {
         variable interp
         $interp init
-        ToolbarState {start !disabled} {step disabled} {stop disabled}
+        ToolbarState {run !disabled} {pause disabled} {continue disabled} {stop disabled}
     }
 
-    proc DoStart {} {
+    proc DoRun {} {
         variable interp
+        ResetTimer
         $interp start
-        ToolbarState {start disabled} {step !disabled} {stop !disabled}
+        ToolbarState {run disabled} {pause !disabled} {stop !disabled}
+        RunLoop
     }
 
-    proc DoStep {} {
+    proc RunLoop {} {
         variable interp
-        # TODO: catch
+        variable RunTimer
+        variable Speed
+
         $interp step
         if {[$interp isStopped]} {
             DoStop
         }
+
+        set RunTimer [after [expr {$Speed * 30}] [namespace code RunLoop]]
+    }
+
+    proc DoPause {} {
+        ResetTimer
+        ToolbarState {pause disabled} {continue !disabled}
+    }
+
+    proc DoContinue {} {
+        RunLoop
+        ToolbarState {pause !disabled} {continue disabled}
     }
 
     proc DoStop {} {
         variable interp
         # TODO: catch
         $interp stop
-        ToolbarState {stop disabled} {step disabled} {start !disabled}
+        ToolbarState {run !disabled} {pause disabled} {continue disabled} {stop disabled}
     }
 
     proc DoOpenFile {} {
@@ -687,6 +730,11 @@ namespace eval ::befunge::app {
         } finally {
             close $fd
         }
+    }
+
+    proc ResetTimer {} {
+        variable RunTimer
+        catch { after cancel $RunTimer }
     }
 
     proc ShowError msg {
