@@ -19,6 +19,7 @@ namespace eval ::befunge {
         method init {} {
             $Stack clear
             $Code clear
+            $IO flush
             set State ""
         }
 
@@ -42,7 +43,7 @@ namespace eval ::befunge {
 
         method step {} {
             if {! [my isRunning]} {
-                error "State is not \"running\""
+                throw {STATE_STOPPED} "State is not \"running\""
             }
             set op [$Code get {*}[$PC xy]]
             if {[my isStringMode]} {

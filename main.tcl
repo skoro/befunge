@@ -513,14 +513,14 @@ proc load_image { name filename } {
 
 namespace eval ::befunge::app {
 
-    variable interp
-    variable toolbar
+    variable Int
+    variable Toolbar
     variable Speed
     variable RunTimer
 
     proc init {} {
-        variable interp
-        variable toolbar
+        variable Int
+        variable Toolbar
         variable Speed
 
         wm title . "Befunge"
@@ -528,7 +528,7 @@ namespace eval ::befunge::app {
         LoadImages
 
         set Speed 5
-        set toolbar [Toolbar .t]
+        set Toolbar [Toolbar .t]
 
         set main_pane [panedwindow .pw -orient vertical]
 
@@ -543,13 +543,13 @@ namespace eval ::befunge::app {
 
         $main_pane add [$code frame] $bottom_frame
 
-        pack $toolbar -side top -fill x
+        pack $Toolbar -side top -fill x
         pack $main_pane -fill both -expand yes
 
         . configure -menu [AppMenu]
 
         set pc [PCCanvas new [$code canvas]]
-        set interp [Interp new $stack $code $pc $io]
+        set Int [Interp new $stack $code $pc $io]
     }
 
     proc LoadImages {} {
@@ -558,6 +558,7 @@ namespace eval ::befunge::app {
         load_image ico.continue control_repeat_blue.png
         load_image ico.stop control_stop_blue.png
 
+        load_image ico.new table.png
         load_image ico.open folder.png
         load_image ico.save table_save.png
     }
@@ -585,7 +586,10 @@ namespace eval ::befunge::app {
     proc Toolbar { w } {
         set t [frame $w]
 
-        ttk::button $t.new -text "New" -style Toolbutton \
+        ttk::button $t.new -text "New" \
+            -style Toolbutton \
+            -compound left \
+            -image ico.new \
             -command [namespace code DoNew]
         ttk::button $t.open -text "Open" \
             -style Toolbutton \
@@ -644,35 +648,44 @@ namespace eval ::befunge::app {
     }
 
     proc ToolbarState { args } {
-        variable toolbar
+        variable Toolbar
         foreach item $args {
             foreach { btn newState} $item {
-                $toolbar.$btn state $newState
+                $Toolbar.$btn state $newState
             }
         }
     }
 
     proc DoNew {} {
-        variable interp
-        $interp init
+        variable Int
+        $Int init
         ToolbarState {run !disabled} {pause disabled} {continue disabled} {stop disabled}
     }
 
     proc DoRun {} {
-        variable interp
+        variable Int
         ResetTimer
-        $interp start
+        $Int start
         ToolbarState {run disabled} {pause !disabled} {stop !disabled}
+        ToolbarState {new disabled} {open disabled} {save disabled}
         RunLoop
     }
 
     proc RunLoop {} {
-        variable interp
+        variable Int
         variable RunTimer
         variable Speed
 
-        $interp step
-        if {[$interp isStopped]} {
+        try {
+            $Int step
+        } trap STATE_STOPPED _ {
+            # nothing to do...
+        } on error msg {
+            DoStop
+            ShowError $msg
+        }
+
+        if {[$Int isStopped]} {
             DoStop
         }
 
@@ -690,16 +703,17 @@ namespace eval ::befunge::app {
     }
 
     proc DoStop {} {
-        variable interp
+        variable Int
         # TODO: catch
-        $interp stop
+        $Int stop
         ToolbarState {run !disabled} {pause disabled} {continue disabled} {stop disabled}
+        ToolbarState {new !disabled} {open !disabled} {save !disabled}
     }
 
     proc DoOpenFile {} {
-        variable interp
+        variable Int
         set filename [tk_getOpenFile]
-        set check [::befunge::CodeMatrix new [[$interp code] width] [[$interp code] height]]
+        set check [::befunge::CodeMatrix new [[$Int code] width] [[$Int code] height]]
         if {$filename eq ""} {
             return
         }
@@ -708,7 +722,7 @@ namespace eval ::befunge::app {
             set str [read $fd]
             $check from_string $str
             DoNew
-            [$interp code] from_string $str
+            [$Int code] from_string $str
         } on error msg {
             ShowError [format "%s: %s" $filename $msg]
         } finally {
@@ -717,14 +731,14 @@ namespace eval ::befunge::app {
     }
 
     proc DoSaveFile {} {
-        variable interp
+        variable Int
         set filename [tk_getSaveFile]
         if {$filename eq ""} {
             return
         }
         try {
             set fd [open $filename "w"]
-            puts -nonewline $fd [[$interp code] to_string]
+            puts -nonewline $fd [[$Int code] to_string]
         } on error msg {
             ShowError [format "%s: %s" $filename $msg]
         } finally {
