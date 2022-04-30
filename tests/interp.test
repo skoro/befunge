@@ -349,4 +349,26 @@ test interp-io-1.4 { operation "," outputs the value as a character } {
     $io get_output
 } "A"
 
+test interp-put-1.1 { checking "p" (put) operation } {
+    set i [createInterp]
+    [$i code] set_op 0 0 9
+    [$i code] set_op 1 0 4
+    [$i code] set_op 2 0 5
+    [$i code] set_op 3 0 "p"
+    $i start
+    times 4 { $i step }
+    [$i code] get 4 5
+} 9
+
+test interp-get-1.1 { checking "g" (get) operation } {
+    set i [createInterp]
+    [$i code] set_op 4 5 8
+    [$i code] set_op 0 0 4
+    [$i code] set_op 1 0 5
+    [$i code] set_op 2 0 "g"
+    $i start
+    times 4 { $i step }
+    [$i stack] top
+} 8
+
 ::tcltest::cleanupTests

@@ -77,8 +77,8 @@ namespace eval ::befunge {
                 "."  { my OpOutputAsInt }
                 ","  { my OpOutputAsChar }
                 "#"  { my OpStepOver }
-                "g"  {}
-                "p"  {}
+                "g"  { my OpGet }
+                "p"  { my OpPut }
                 "&"  { my OpAskNumber }
                 "~"  { my OpAskChar }
                 "@"  { my stop }
@@ -174,6 +174,19 @@ namespace eval ::befunge {
 
         method OpOutputAsChar {} {
             $IO output [format "%c" [$Stack pop]]
+        }
+
+        method OpGet {} {
+            lassign [$Stack lpop 2] y x
+            if { [catch {set val [$Code get $x $y]}] } {
+                set val 0
+            }
+            $Stack push $val
+        }
+
+        method OpPut {} {
+            lassign [$Stack lpop 3] y x v
+            $Code set_op $x $y $v
         }
 
         method OpUnknown { op } {
