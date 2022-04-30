@@ -81,6 +81,7 @@ proc load_image { name filename } {
         set Options(rectBgNormal) LightGrey
         set Options(rectColor) DarkGrey
         set Options(rectBgEdit) Yellow
+        set Options(textColor) Black
     }
 
     method ParseArgs _args {
@@ -142,6 +143,7 @@ proc load_image { name filename } {
                     -tags [list [my RectTagXY $x $y] rect]
                 $CW create text [expr {$sx + $RW/2}] [expr {$sy + $RH/2}] \
                     -font $Options(font) \
+                    -fill $Options(textColor) \
                     -tags [list [my TextTagXY $x $y] text]
             }
         }
@@ -190,6 +192,7 @@ proc load_image { name filename } {
 
     method reset {} {
         my SetRectAsNormal rect
+        $CW itemconfigure text -fill $Options(textColor)
     }
 
     method enable {} {
@@ -373,6 +376,7 @@ proc load_image { name filename } {
     method stop {} {
         next
         [my code] enable
+        [my code] reset
     }
 }
 
@@ -546,7 +550,8 @@ namespace eval ::befunge::app {
         pack $Toolbar -side top -fill x
         pack $main_pane -fill both -expand yes
 
-        . configure -menu [AppMenu]
+        # TODO: should be implemented later on.
+        #. configure -menu [AppMenu]
 
         set pc [PCCanvas new [$code canvas]]
         set Int [Interp new $stack $code $pc $io]
@@ -687,9 +692,10 @@ namespace eval ::befunge::app {
 
         if {[$Int isStopped]} {
             DoStop
+        } else {
+            set RunTimer [after [expr {$Speed * 30}] [namespace code RunLoop]]
         }
 
-        set RunTimer [after [expr {$Speed * 30}] [namespace code RunLoop]]
     }
 
     proc DoPause {} {
@@ -706,6 +712,7 @@ namespace eval ::befunge::app {
         variable Int
         # TODO: catch
         $Int stop
+        ResetTimer
         ToolbarState {run !disabled} {pause disabled} {continue disabled} {stop disabled}
         ToolbarState {new !disabled} {open !disabled} {save !disabled}
     }
