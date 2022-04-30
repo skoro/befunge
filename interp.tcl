@@ -106,7 +106,10 @@ namespace eval ::befunge {
             $Stack push [expr { $b > $a }]
         }
 
-        method OpStackDup {} { $Stack dup }
+        method OpStackDup {} {
+            if {[$Stack size] == 0} { $Stack push 0 }
+            $Stack dup
+        }
 
         method OpStackSwap {} { $Stack swap }
 
